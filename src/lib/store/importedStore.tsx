@@ -1,9 +1,14 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { StockView } from "@/lib/types";
 import { CompanySnapshotRow, GovernanceFlagRow } from "@/lib/importedStock/types";
 import { buildStockViewFromSnapshot } from "@/lib/importedStock/build";
+import { isSupabaseConfigured } from "@/lib/supabase/isConfigured";
+import { ImportedContext, ImportedContextValue } from "./importedContext";
+import { SupabaseImportedProvider } from "./supabaseImportedProvider";
+
+export { useImportedData } from "./importedContext";
 
 const STORAGE_KEY = "isp-builder-imported-v1";
 
@@ -14,16 +19,6 @@ interface ImportedState {
 }
 
 const DEFAULT_STATE: ImportedState = { snapshots: [], governanceFlags: [], importedAt: null };
-
-interface ImportedContextValue extends ImportedState {
-  stockViews: StockView[];
-  importSnapshots: (rows: CompanySnapshotRow[], mode: "merge" | "replace") => { added: number; replaced: number };
-  importGovernanceFlags: (rows: GovernanceFlagRow[], mode: "merge" | "replace") => number;
-  removeCompany: (ticker: string) => void;
-  clearAll: () => void;
-}
-
-const ImportedContext = createContext<ImportedContextValue | null>(null);
 
 function loadState(): ImportedState {
   if (typeof window === "undefined") return DEFAULT_STATE;
@@ -36,7 +31,8 @@ function loadState(): ImportedState {
   }
 }
 
-export function ImportedDataProvider({ children }: { children: React.ReactNode }) {
+/** localStorage-backed provider — used whenever Supabase isn't configured (the zero-config demo path). */
+function LocalImportedProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<ImportedState>(DEFAULT_STATE);
   const [hydrated, setHydrated] = useState(false);
 
@@ -51,15 +47,17 @@ export function ImportedDataProvider({ children }: { children: React.ReactNode }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state, hydrated]);
 
-  const stockViews = useMemo(() => {
+  const stockViews = useMemo<StockView[]>(() => {
     if (!state.importedAt) return [];
     return state.snapshots.map((row) => buildStockViewFromSnapshot(row, state.governanceFlags, state.importedAt as string));
   }, [state.snapshots, state.governanceFlags, state.importedAt]);
 
   const value = useMemo<ImportedContextValue>(() => ({
-    ...state,
+    importedAt: state.importedAt,
     stockViews,
-    importSnapshots: (rows, mode) => {
+    mode: "local",
+    signedIn: true,
+    importSnapshots: async (rows, mode) => {
       const now = new Date().toISOString().slice(0, 10);
       let added = 0;
       let replaced = 0;
@@ -78,7 +76,7 @@ export function ImportedDataProvider({ children }: { children: React.ReactNode }
       });
       return { added, replaced };
     },
-    importGovernanceFlags: (rows, mode) => {
+    importGovernanceFlags: async (rows, mode) => {
       const now = new Date().toISOString().slice(0, 10);
       setState((s) => ({
         ...s,
@@ -100,8 +98,8 @@ export function ImportedDataProvider({ children }: { children: React.ReactNode }
   return <ImportedContext.Provider value={value}>{children}</ImportedContext.Provider>;
 }
 
-export function useImportedData(): ImportedContextValue {
-  const ctx = useContext(ImportedContext);
-  if (!ctx) throw new Error("useImportedData must be used within ImportedDataProvider");
-  return ctx;
+/** Picks localStorage or Supabase persistence — see isSupabaseConfigured(). Consumers (useImportedData()) never know the difference. */
+export function ImportedDataProvider({ children }: { children: React.ReactNode }) {
+  if (isSupabaseConfigured()) return <SupabaseImportedProvider>{children}</SupabaseImportedProvider>;
+  return <LocalImportedProvider>{children}</LocalImportedProvider>;
 }

@@ -4,11 +4,10 @@ A decision-support tool for screening, scoring, and building a long-term Indian
 equity portfolio — built from `Indian_Stock_Portfolio_Builder_COMPLETE.md`.
 
 This is **Phase 1 + core of Phase 3** of that spec's phased plan: the stock
-database, scoring/risk/decision engine, screener, stock detail pages, and a
-client-side portfolio + SIP planner, all running on generated demo data so it
-works with zero configuration. Live market-data ingestion, Supabase
-persistence, and multi-user auth (Phase 2 / later) are not built yet — see
-[What's not built yet](#whats-not-built-yet).
+database, scoring/risk/decision engine, screener, stock detail pages, a
+portfolio + SIP planner, a real market-data provider, and optional Supabase
+persistence with auth. See [What's not built yet](#whats-not-built-yet) for
+what's still deferred.
 
 ## Getting started
 
@@ -18,7 +17,10 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). No environment variables
-or database are required — see `.env.example` for what Phase 2 will need.
+or database are required — the app runs entirely on generated demo data with
+localStorage persistence out of the box. See
+[Supabase persistence](#supabase-persistence-optional) to switch to real,
+multi-device storage.
 
 ## What's implemented
 
@@ -51,8 +53,8 @@ or database are required — see `.env.example` for what Phase 2 will need.
 - **Portfolio + SIP planner** (`/portfolio`) — editable ₹ capital and
   Growth/Value/Dividend/Opportunity allocation, suggested position sizing
   (capped by market-cap category and category budget), staged-tranche SIP
-  plans, and allocation/sector-concentration warnings. State is kept in
-  `localStorage` (no backend yet — see below).
+  plans, and allocation/sector-concentration warnings. Persists to
+  localStorage or Supabase depending on configuration — see below.
 - **Watchlist** (`/watchlist`) and a **dashboard** (`/`) pulling top
   candidates, accumulation opportunities, risk alerts, and upcoming SIP
   tranches.
@@ -91,8 +93,7 @@ or database are required — see `.env.example` for what Phase 2 will need.
   works — anything you don't supply (a CAGR, a DMA, a governance flag) stays
   null and is reflected honestly as a lower confidence score and a 0-weighted
   sub-score, not an invented average. Imported companies are tagged
-  "Imported" everywhere they appear, and state lives in `localStorage`
-  alongside the portfolio/watchlist (see `src/lib/importedStock/` and
+  "Imported" everywhere they appear (see `src/lib/importedStock/` and
   `src/lib/store/importedStore.tsx`).
 - **`MarketDataProvider` interface + a real Alpha Vantage adapter**
   (`src/lib/providers/`, section 6) — the app is not hard-coded around one
@@ -125,6 +126,54 @@ or database are required — see `.env.example` for what Phase 2 will need.
     everything downstream — validation, scoring, the Fundamental Scanner —
     treats a live-fetched stock and a CSV-imported one identically.
 
+## Supabase persistence (optional)
+
+By default the app persists everything to `localStorage` and needs zero
+setup. Setting the Supabase env vars switches the **entire app** — portfolio,
+watchlist, thesis notes, allocation settings, and imported stocks — over to
+real Postgres persistence with email/password auth, without any page needing
+to know which backend is active (`usePortfolio()` / `useImportedData()` stay
+the same either way; see `src/lib/store/portfolioContext.ts` and
+`importedContext.ts`).
+
+**Setup:**
+1. Create a free project at [supabase.com/dashboard](https://supabase.com/dashboard).
+2. Copy `.env.example` to `.env.local` and fill in the Supabase block: the
+   Project URL and anon/publishable key (Project Settings → Data API), the
+   secret/service_role key (Project Settings → API Keys — server-only, keep
+   this private), and a Postgres connection string for migrations (Project
+   Settings → Database → Connection string → URI).
+3. Run `npm run migrate` — applies `supabase/migrations/0001_init.sql`
+   directly over that connection string (no Supabase CLI or Docker needed;
+   see `scripts/migrate.mjs`).
+4. Restart `npm run dev`. A "Sign in" link appears in the nav; sign up and
+   your portfolio/watchlist/imports now sync across devices.
+
+**Schema design notes** (`supabase/migrations/0001_init.sql`):
+- Two data domains, mirroring section 38 ("stock market data can be shared
+  globally"): `companies` + its related tables (fundamentals, valuation,
+  dividends, ownership, governance flags, technicals) are **publicly
+  readable by anyone**, writable only by signed-in users, and track a
+  `created_by` column so "remove"/"clear all" in the app — and matching
+  row-level-security policies — only ever touch a user's own imports, never
+  another visitor's. `portfolio_holdings` / `transactions` / `watchlist` /
+  `thesis_notes` / `allocation_settings` are private, RLS-scoped to
+  `auth.uid()`.
+- `companies.id` is a plain **text** id matching the app's in-memory scheme
+  (e.g. `imported-reliance`), not an auto-generated uuid — and per-user
+  tables reference `company_id` as free text with **no foreign key**,
+  deliberately: demo stocks (e.g. `nimbus-tech`) are synthetic and never
+  written to Supabase, so a user has to be able to hold or watch one without
+  it existing in the `companies` table at all.
+- The demo-data generator never touches Supabase — it stays exactly as
+  described above, in-memory and synthetic, on every deployment.
+- Verified against a real Supabase project during development: sign-up,
+  buying a demo stock into the portfolio, CSV-importing a real company,
+  confirming both wrote correctly (checked directly via `psql`-equivalent
+  queries), reloading in a fresh tab to confirm the session and data
+  persisted, and confirming a signed-out visitor can still read the shared
+  imported universe but not write to it.
+
 ## What's not built yet
 
 Per the spec's own phasing (section 65), these are intentionally deferred:
@@ -134,8 +183,6 @@ Per the spec's own phasing (section 65), these are intentionally deferred:
 - A second `MarketDataProvider` implementation (e.g. Twelve Data) — the
   interface is provider-agnostic by design, but only Alpha Vantage is wired
   up so far.
-- Postgres/Supabase persistence and auth — portfolio/watchlist/imported-data
-  state lives in the browser's `localStorage` only.
 - Alerts, benchmarking (XIRR vs NIFTY), and performance attribution
   (Phases 4, 5).
 
@@ -148,4 +195,6 @@ schema from later.
 Next.js (App Router) + React + TypeScript + Tailwind CSS, no external chart
 library (a small inline-SVG line chart in `src/components/charts/`) to keep
 the MVP dependency-free — swap in TradingView Lightweight Charts later if
-needed.
+needed. Optional: `@supabase/supabase-js` + `@supabase/ssr` for persistence
+and auth, `pg` (dev-only) to run migrations without needing the Supabase CLI
+or Docker installed.

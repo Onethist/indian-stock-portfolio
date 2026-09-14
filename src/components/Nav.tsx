@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/store/authStore";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -13,6 +14,8 @@ const LINKS = [
 
 export function Nav() {
   const pathname = usePathname();
+  const { configured, user, loading } = useAuth();
+
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -36,6 +39,16 @@ export function Nav() {
               </Link>
             );
           })}
+          {configured && !loading && (
+            <Link
+              href="/login"
+              className={`shrink-0 whitespace-nowrap rounded-md border border-slate-300 px-2.5 py-1.5 font-medium text-slate-600 hover:border-slate-400 sm:px-3 ${
+                pathname === "/login" ? "border-slate-900" : ""
+              }`}
+            >
+              {user ? user.email?.split("@")[0] : "Sign in"}
+            </Link>
+          )}
         </nav>
       </div>
     </header>

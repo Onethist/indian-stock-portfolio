@@ -22,9 +22,10 @@ function downloadText(filename: string, content: string) {
 }
 
 export default function ImportPage() {
-  const { snapshots, importedAt, importSnapshots, importGovernanceFlags, removeCompany, clearAll } = useImportedData();
+  const { importedAt, importSnapshots, importGovernanceFlags, removeCompany, clearAll, mode, signedIn } = useImportedData();
   const universe = useUniverse();
   const importedStocks = universe.filter((s) => s.company.dataSource === "imported");
+  const canWrite = mode === "local" || signedIn;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-6 sm:px-6">
@@ -41,27 +42,40 @@ export default function ImportPage() {
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>Each row is treated as one real, current snapshot — not a fabricated multi-year history like the demo companies. Fundamentals charts will show a single point unless you fill in <code>salesCagr5y</code> / <code>profitCagr5y</code> etc. directly.</li>
           <li>Technical indicators (DMA/RSI/52-week range) are optional columns — leave them blank if you don&apos;t have them; the technical score will simply be lower-weighted rather than guessed.</li>
-          <li>Data is stored only in this browser (localStorage) — nothing is uploaded anywhere.</li>
+          <li>
+            {mode === "supabase"
+              ? "Imported companies are stored in Supabase and visible to every visitor (market data is shared); your portfolio, watchlist, and notes stay private to your account."
+              : "Data is stored only in this browser (localStorage) — nothing is uploaded anywhere."}
+          </li>
           <li>Imported stocks appear everywhere the demo stocks do — screener, dashboard, portfolio, scanner — tagged &ldquo;Imported&rdquo;.</li>
         </ul>
       </div>
 
+      {mode === "supabase" && !signedIn && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Persistence is backed by Supabase on this deployment. You can still browse the shared imported universe below,
+          but <Link href="/login" className="underline">sign in</Link> to import new stocks yourself.
+        </div>
+      )}
+
       <SnapshotImportSection
-        onImport={(rows, mode) => importSnapshots(rows, mode)}
-        existingCount={snapshots.length}
+        onImport={(rows, importMode) => importSnapshots(rows, importMode)}
+        existingCount={importedStocks.length}
+        disabled={!canWrite}
       />
 
-      <LiveFetchSection onImport={(row) => importSnapshots([row], "merge")} />
+      <LiveFetchSection onImport={(row) => importSnapshots([row], "merge")} disabled={!canWrite} />
 
       <GovernanceImportSection
-        knownTickers={new Set(snapshots.map((s) => s.ticker))}
-        onImport={(rows, mode) => importGovernanceFlags(rows, mode)}
+        knownTickers={new Set(importedStocks.map((s) => s.company.ticker))}
+        onImport={(rows, importMode) => importGovernanceFlags(rows, importMode)}
+        disabled={!canWrite}
       />
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-900">Currently imported ({importedStocks.length})</h2>
-          {snapshots.length > 0 && (
+          {importedStocks.length > 0 && canWrite && (
             <button
               onClick={() => {
                 if (confirm("Remove all imported companies and governance flags? This cannot be undone.")) clearAll();
@@ -84,9 +98,11 @@ export default function ImportPage() {
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 <ScoreBadge score={s.score.totalScore} />
-                <button onClick={() => removeCompany(s.company.ticker)} className="text-xs font-medium text-slate-400 hover:text-red-600">
-                  Remove
-                </button>
+                {canWrite && (
+                  <button onClick={() => removeCompany(s.company.ticker)} className="text-xs font-medium text-slate-400 hover:text-red-600">
+                    Remove
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -100,9 +116,11 @@ export default function ImportPage() {
 function SnapshotImportSection({
   onImport,
   existingCount,
+  disabled,
 }: {
-  onImport: (rows: CompanySnapshotRow[], mode: "merge" | "replace") => { added: number; replaced: number };
+  onImport: (rows: CompanySnapshotRow[], mode: "merge" | "replace") => Promise<{ added: number; replaced: number }>;
   existingCount: number;
+  disabled: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pasteText, setPasteText] = useState("");
@@ -176,18 +194,19 @@ function SnapshotImportSection({
           </div>
 
           <button
-            onClick={() => {
-              const { added, replaced } = onImport(validRows, mode);
+            onClick={async () => {
+              const { added, replaced } = await onImport(validRows, mode);
               setConfirmation(`Imported ${added} new and updated ${replaced} existing compan${added + replaced === 1 ? "y" : "ies"}.`);
               setResults(null);
               setPasteText("");
               if (fileInputRef.current) fileInputRef.current.value = "";
             }}
-            disabled={validRows.length === 0}
+            disabled={validRows.length === 0 || disabled}
             className="mt-3 rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Import {validRows.length} valid row{validRows.length === 1 ? "" : "s"}
           </button>
+          {disabled && <p className="mt-2 text-xs text-amber-700">Sign in to import.</p>}
         </div>
       )}
       {confirmation && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{confirmation}</p>}
@@ -195,7 +214,7 @@ function SnapshotImportSection({
   );
 }
 
-function LiveFetchSection({ onImport }: { onImport: (row: CompanySnapshotRow) => void }) {
+function LiveFetchSection({ onImport, disabled }: { onImport: (row: CompanySnapshotRow) => Promise<unknown>; disabled: boolean }) {
   const [symbol, setSymbol] = useState("");
   const [sector, setSector] = useState<Sector>("IT");
   const [loading, setLoading] = useState(false);
@@ -292,16 +311,18 @@ function LiveFetchSection({ onImport }: { onImport: (row: CompanySnapshotRow) =>
             </ul>
           )}
           <button
-            onClick={() => {
-              onImport(row);
+            onClick={async () => {
+              await onImport(row);
               setConfirmation(`Imported ${row.ticker} from Alpha Vantage.`);
               setRow(null);
               setSymbol("");
             }}
-            className="mt-3 rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            disabled={disabled}
+            className="mt-3 rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Import this stock
           </button>
+          {disabled && <p className="mt-2 text-xs text-amber-700">Sign in to import.</p>}
         </div>
       )}
       {confirmation && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{confirmation}</p>}
@@ -312,9 +333,11 @@ function LiveFetchSection({ onImport }: { onImport: (row: CompanySnapshotRow) =>
 function GovernanceImportSection({
   knownTickers,
   onImport,
+  disabled,
 }: {
   knownTickers: Set<string>;
-  onImport: (rows: GovernanceFlagRow[], mode: "merge" | "replace") => number;
+  onImport: (rows: GovernanceFlagRow[], mode: "merge" | "replace") => Promise<number>;
+  disabled: boolean;
 }) {
   const [pasteText, setPasteText] = useState("");
   const [results, setResults] = useState<RowValidation<GovernanceFlagRow>[] | null>(null);
@@ -362,17 +385,18 @@ function GovernanceImportSection({
         <div className="mt-4">
           <ValidationTable results={results} idColumn="ticker" />
           <button
-            onClick={() => {
-              const count = onImport(validRows, "merge");
+            onClick={async () => {
+              const count = await onImport(validRows, "merge");
               setConfirmation(`Imported ${count} governance flag(s).`);
               setResults(null);
               setPasteText("");
             }}
-            disabled={validRows.length === 0}
+            disabled={validRows.length === 0 || disabled}
             className="mt-3 rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Import {validRows.length} valid row{validRows.length === 1 ? "" : "s"}
           </button>
+          {disabled && <p className="mt-2 text-xs text-amber-700">Sign in to import.</p>}
         </div>
       )}
       {confirmation && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{confirmation}</p>}

@@ -1,18 +1,16 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { AllocationSettings, PortfolioHolding, StockCategory, Transaction, WatchlistItem } from "@/lib/types";
+import React, { useEffect, useMemo, useState } from "react";
+import { AllocationSettings, PortfolioHolding, Transaction, WatchlistItem } from "@/lib/types";
 import { DEFAULT_ALLOCATION_SETTINGS } from "@/lib/portfolio";
+import { isSupabaseConfigured } from "@/lib/supabase/isConfigured";
+import { PortfolioContext, PortfolioContextValue, ThesisEntry } from "./portfolioContext";
+import { SupabasePortfolioProvider } from "./supabasePortfolioProvider";
+
+export type { ThesisEntry } from "./portfolioContext";
+export { usePortfolio } from "./portfolioContext";
 
 const STORAGE_KEY = "isp-builder-state-v1";
-
-export interface ThesisEntry {
-  whyIBought: string;
-  whatIExpect: string;
-  whatCouldGoWrong: string;
-  whatWouldMakeMeSell: string;
-  lastReviewed: string;
-}
 
 interface PersistedState {
   settings: AllocationSettings;
@@ -30,19 +28,6 @@ const DEFAULT_STATE: PersistedState = {
   thesis: {},
 };
 
-interface PortfolioContextValue extends PersistedState {
-  updateSettings: (patch: Partial<AllocationSettings>) => void;
-  buyStock: (companyId: string, category: StockCategory, shares: number, price: number, targetAllocation: number) => void;
-  removeHolding: (companyId: string) => void;
-  addToWatchlist: (companyId: string, notes?: string) => void;
-  removeFromWatchlist: (companyId: string) => void;
-  updateWatchlistNotes: (companyId: string, notes: string) => void;
-  saveThesis: (companyId: string, entry: Omit<ThesisEntry, "lastReviewed">) => void;
-  resetDemo: () => void;
-}
-
-const PortfolioContext = createContext<PortfolioContextValue | null>(null);
-
 function loadState(): PersistedState {
   if (typeof window === "undefined") return DEFAULT_STATE;
   try {
@@ -55,7 +40,8 @@ function loadState(): PersistedState {
   }
 }
 
-export function PortfolioProvider({ children }: { children: React.ReactNode }) {
+/** localStorage-backed provider — used whenever Supabase isn't configured (the zero-config demo path). */
+function LocalPortfolioProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<PersistedState>(DEFAULT_STATE);
   const [hydrated, setHydrated] = useState(false);
 
@@ -74,6 +60,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<PortfolioContextValue>(() => ({
     ...state,
+    mode: "local",
+    signedIn: true,
     updateSettings: (patch) => setState((s) => ({ ...s, settings: { ...s.settings, ...patch } })),
     buyStock: (companyId, category, shares, price, targetAllocation) => {
       setState((s) => {
@@ -154,8 +142,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   return <PortfolioContext.Provider value={value}>{children}</PortfolioContext.Provider>;
 }
 
-export function usePortfolio(): PortfolioContextValue {
-  const ctx = useContext(PortfolioContext);
-  if (!ctx) throw new Error("usePortfolio must be used within PortfolioProvider");
-  return ctx;
+/** Picks localStorage or Supabase persistence — see isSupabaseConfigured(). Consumers (usePortfolio()) never know the difference. */
+export function PortfolioProvider({ children }: { children: React.ReactNode }) {
+  if (isSupabaseConfigured()) return <SupabasePortfolioProvider>{children}</SupabasePortfolioProvider>;
+  return <LocalPortfolioProvider>{children}</LocalPortfolioProvider>;
 }
