@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { StockView } from "@/lib/types";
 import { CompanySnapshotRow, GovernanceFlagRow } from "@/lib/importedStock/types";
 import { buildStockViewFromSnapshot } from "@/lib/importedStock/build";
+import { callRefreshPricesApi } from "@/lib/importedStock/refreshPrices";
 import { isSupabaseConfigured } from "@/lib/supabase/isConfigured";
 import { ImportedContext, ImportedContextValue } from "./importedContext";
 import { SupabaseImportedProvider } from "./supabaseImportedProvider";
@@ -93,6 +94,21 @@ function LocalImportedProvider({ children }: { children: React.ReactNode }) {
       }));
     },
     clearAll: () => setState(DEFAULT_STATE),
+    refreshPrices: async () => {
+      const tickers = state.snapshots.map((s) => s.ticker);
+      if (tickers.length === 0) return { updated: 0, tradingDaysFetched: 0, latestTradingDate: null, warnings: ["Nothing imported to refresh."] };
+      const result = await callRefreshPricesApi(tickers);
+      const updatedCount = Object.values(result.updates).filter((u) => u !== null).length;
+      setState((s) => ({
+        ...s,
+        snapshots: s.snapshots.map((row) => {
+          const u = result.updates[row.ticker];
+          if (!u) return row;
+          return { ...row, price: u.price, dma20: u.dma20, dma50: u.dma50, rsi14: u.rsi14, averageVolume: u.averageVolume, volumeRatio: u.volumeRatio };
+        }),
+      }));
+      return { updated: updatedCount, tradingDaysFetched: result.tradingDaysFetched, latestTradingDate: result.latestTradingDate, warnings: result.warnings };
+    },
   }), [state, stockViews]);
 
   return <ImportedContext.Provider value={value}>{children}</ImportedContext.Provider>;

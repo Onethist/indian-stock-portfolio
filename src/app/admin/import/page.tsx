@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useImportedData } from "@/lib/store/importedStore";
+import { RefreshPricesResult } from "@/lib/store/importedContext";
 import { useUniverse } from "@/lib/universe";
 import { GOVERNANCE_CSV_TEMPLATE, parseCsv, rowsToObjects, SNAPSHOT_CSV_TEMPLATE } from "@/lib/importedStock/csv";
 import { validateGovernanceRows, validateSnapshotRows, VALID_SECTORS } from "@/lib/importedStock/validate";
@@ -21,8 +22,43 @@ function downloadText(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+function RefreshPricesButton({ onRefresh }: { onRefresh: () => Promise<RefreshPricesResult> }) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<RefreshPricesResult | null>(null);
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        onClick={async () => {
+          setLoading(true);
+          setResult(null);
+          try {
+            setResult(await onRefresh());
+          } finally {
+            setLoading(false);
+          }
+        }}
+        disabled={loading}
+        className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-40"
+        title="Pulls real EOD prices, 20/50-day averages, and 14-day RSI from NSE's official bhavcopy archive for your imported NSE stocks."
+      >
+        {loading ? "Fetching from NSE…" : "Refresh live prices (NSE)"}
+      </button>
+      {result && (
+        <p className="max-w-xs text-right text-xs text-slate-500">
+          Updated {result.updated} stock{result.updated === 1 ? "" : "s"} using {result.tradingDaysFetched} real trading day
+          {result.tradingDaysFetched === 1 ? "" : "s"} of NSE data{result.latestTradingDate ? ` (as of ${result.latestTradingDate})` : ""}.
+          {result.warnings.length > 0 && (
+            <span className="block text-amber-700">{result.warnings.join(" ")}</span>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function ImportPage() {
-  const { importedAt, importSnapshots, importGovernanceFlags, removeCompany, clearAll, mode, signedIn } = useImportedData();
+  const { importedAt, importSnapshots, importGovernanceFlags, removeCompany, clearAll, refreshPrices, mode, signedIn } = useImportedData();
   const universe = useUniverse();
   const importedStocks = universe.filter((s) => s.company.dataSource === "imported");
   const canWrite = mode === "local" || signedIn;
@@ -48,6 +84,11 @@ export default function ImportPage() {
               : "Data is stored only in this browser (localStorage) — nothing is uploaded anywhere."}
           </li>
           <li>Imported stocks appear everywhere the demo stocks do — screener, dashboard, portfolio, scanner — tagged &ldquo;Imported&rdquo;.</li>
+          <li>
+            Once a stock is imported, use &ldquo;Refresh live prices (NSE)&rdquo; below to pull real EOD prices and technicals
+            (20/50-day averages, 14-day RSI) from NSE&apos;s official public bhavcopy archive — free, no API key, no scraping of
+            any site that prohibits it. NSE-listed tickers only; not a substitute for fundamentals.
+          </li>
         </ul>
       </div>
 
@@ -73,17 +114,20 @@ export default function ImportPage() {
       />
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-900">Currently imported ({importedStocks.length})</h2>
           {importedStocks.length > 0 && canWrite && (
-            <button
-              onClick={() => {
-                if (confirm("Remove all imported companies and governance flags? This cannot be undone.")) clearAll();
-              }}
-              className="text-xs font-medium text-red-500 hover:text-red-700"
-            >
-              Clear all imported data
-            </button>
+            <div className="flex items-center gap-3">
+              <RefreshPricesButton onRefresh={refreshPrices} />
+              <button
+                onClick={() => {
+                  if (confirm("Remove all imported companies and governance flags? This cannot be undone.")) clearAll();
+                }}
+                className="text-xs font-medium text-red-500 hover:text-red-700"
+              >
+                Clear all imported data
+              </button>
+            </div>
           )}
         </div>
         {importedAt && <p className="mt-1 text-xs text-slate-400">Last imported: {importedAt}</p>}

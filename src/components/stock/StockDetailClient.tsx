@@ -300,7 +300,7 @@ function TechnicalTab({ stock }: { stock: StockView }) {
           <Stat label="Price vs 200 DMA" value={formatPct(t.priceVs200dma)} />
           <Stat label="50 vs 200 DMA" value={formatPct(t.dma50VsDma200)} />
           <Stat label="RSI (14)" value={formatValue(t.rsi14)} />
-          <Stat label="52W range" value={`₹${t.low52w} – ₹${t.high52w}`} />
+          <Stat label="52W range" value={t.low52w !== null && t.high52w !== null ? `₹${t.low52w} – ₹${t.high52w}` : "N/A"} />
           <Stat label="Dist. from 52W high" value={formatPct(t.distanceFrom52wHigh)} />
           <Stat label="Volume ratio" value={formatValue(t.volumeRatio, "x")} />
         </div>

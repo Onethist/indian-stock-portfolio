@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StockView } from "@/lib/types";
 import { stockViewFromSupabaseRow } from "@/lib/importedStock/fromSupabaseRow";
 import { insertGovernanceFlagsToSupabase, upsertSnapshotToSupabase } from "@/lib/importedStock/writeToSupabase";
+import { callRefreshPricesApi } from "@/lib/importedStock/refreshPrices";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/store/authStore";
 import { ImportedContext, ImportedContextValue } from "./importedContext";
@@ -85,6 +86,35 @@ export function SupabaseImportedProvider({ children }: { children: React.ReactNo
         await supabase.from("companies").delete().eq("created_by", user.id);
         await refetch();
       })();
+    },
+
+    refreshPrices: async () => {
+      if (!user) return { updated: 0, tradingDaysFetched: 0, latestTradingDate: null, warnings: ["Sign in to refresh prices."] };
+      const tickers = stockViews.map((s) => s.company.ticker);
+      if (tickers.length === 0) return { updated: 0, tradingDaysFetched: 0, latestTradingDate: null, warnings: ["Nothing imported to refresh."] };
+
+      const result = await callRefreshPricesApi(tickers);
+      const now = new Date().toISOString();
+      let updated = 0;
+      for (const [ticker, u] of Object.entries(result.updates)) {
+        if (!u) continue;
+        updated++;
+        await supabase.from("technicals").upsert(
+          {
+            company_id: `imported-${ticker.toLowerCase()}`,
+            date: now.slice(0, 10),
+            price: u.price,
+            dma20: u.dma20,
+            dma50: u.dma50,
+            rsi14: u.rsi14,
+            average_volume: u.averageVolume,
+            volume_ratio: u.volumeRatio,
+          },
+          { onConflict: "company_id" }
+        );
+      }
+      await refetch();
+      return { updated, tradingDaysFetched: result.tradingDaysFetched, latestTradingDate: result.latestTradingDate, warnings: result.warnings };
     },
   };
 

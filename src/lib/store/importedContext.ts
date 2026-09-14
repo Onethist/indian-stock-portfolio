@@ -13,6 +13,15 @@ export interface ImportedContextValue {
   importGovernanceFlags: (rows: GovernanceFlagRow[], mode: "merge" | "replace") => Promise<number>;
   removeCompany: (ticker: string) => void;
   clearAll: () => void;
+  /** Real prices/DMA/RSI from NSE's official bhavcopy archive for every currently-imported NSE ticker. */
+  refreshPrices: () => Promise<RefreshPricesResult>;
+}
+
+export interface RefreshPricesResult {
+  updated: number;
+  tradingDaysFetched: number;
+  latestTradingDate: string | null;
+  warnings: string[];
 }
 
 export const ImportedContext = createContext<ImportedContextValue | null>(null);

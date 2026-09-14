@@ -125,6 +125,33 @@ multi-device storage.
     shape the CSV pipeline produces (`src/lib/providers/normalize.ts`), so
     everything downstream — validation, scoring, the Fundamental Scanner —
     treats a live-fetched stock and a CSV-imported one identically.
+- **Real, free EOD prices/technicals via NSE's official bhavcopy archive**
+  (`src/lib/providers/nseBhavcopy.ts`, "Refresh live prices (NSE)" on
+  `/admin/import`) — deliberately *not* a scraper. NSE publishes a full-market
+  CSV per trading day at a public archive URL, meant for bulk download, not a
+  rendered page or an internal API; this is the same source most open-source
+  Indian market tools use. The build spec this app follows explicitly says
+  "never scrape a website merely because it displays public information if
+  automated use is not permitted" (section 62) — that line is why fundamentals
+  aggregators (screener.in, moneycontrol, Trendlyne, all of which prohibit
+  scraping in their terms) were never touched, while this official archive was.
+  - Walks backward from today downloading one whole-market file per trading
+    day (skipping weekends/holidays automatically — a 404 just means try the
+    previous day) and extracts every currently-imported ticker from each file
+    in the same pass, so the request count depends only on how many days of
+    history are requested, never on how many stocks you have imported.
+  - Computes real DMA20/DMA50/RSI14/volume ratio from up to 60 real trading
+    days (~50s budget, safely inside Vercel's serverless limit). Deliberately
+    does **not** populate DMA100/DMA200/52-week high-low from a 60-day
+    window — those stay `null` (and show "N/A") rather than being faked from
+    insufficient history, exactly like everywhere else in this app.
+  - NSE-listed equities only (a `.BSE` suffix is stripped and won't match).
+  - Verified live in development: imported RELIANCE and TCS via CSV with
+    placeholder prices, ran the refresh, and watched real NSE closing prices,
+    60 real trading days, and real RSI/DMA values come back and update both
+    scores accordingly (also caught and fixed a display bug this surfaced:
+    a 52-week range rendered literally as "₹null – ₹null" when the two
+    fields were legitimately unavailable — now shows "N/A").
 
 ## Supabase persistence (optional)
 
