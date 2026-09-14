@@ -229,6 +229,16 @@ The `Company`/`Fundamentals`/`Valuation`/etc. shapes in `src/lib/types.ts`
 mirror the spec's table schema closely enough to generate a real Postgres
 schema from later.
 
+## Deployment
+
+Deployed on Vercel, connected to this GitHub repo — every push to `main`
+auto-deploys to production. `vercel.json` also configures the scheduled
+price-refresh cron (see [Real, free EOD prices/technicals](#whats-implemented)
+above). Production env vars (`NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+`ALPHA_VANTAGE_API_KEY`, `CRON_SECRET`) are set directly on the Vercel
+project, not committed anywhere.
+
 ## Stack
 
 Next.js (App Router) + React + TypeScript + Tailwind CSS, no external chart
