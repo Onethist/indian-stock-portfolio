@@ -152,6 +152,18 @@ multi-device storage.
     scores accordingly (also caught and fixed a display bug this surfaced:
     a 52-week range rendered literally as "₹null – ₹null" when the two
     fields were legitimately unavailable — now shows "N/A").
+  - **Runs automatically, too**: `vercel.json` schedules
+    `/api/cron/refresh-prices` once daily on weekdays (13:00 UTC / 18:30 IST,
+    after NSE bhavcopy is published). It refreshes every NSE-listed company
+    already in Supabase — no manual clicking required once you've imported a
+    stock. Requires Supabase (there'd be nothing server-side to iterate over
+    otherwise) and a `CRON_SECRET` env var, which Vercel automatically sends
+    as `Authorization: Bearer <value>` on the scheduled call — verified
+    locally by calling the route with and without the correct header before
+    wiring it into Vercel. The manual "Refresh live prices (NSE)" button on
+    `/admin/import` still exists for on-demand refreshes (and is the only
+    option in localStorage-only mode, where there's no server-side company
+    list for a cron job to iterate over).
 
 ## Supabase persistence (optional)
 
