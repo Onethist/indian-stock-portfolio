@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { getStockUniverse } from "@/lib/demo";
+import { useUniverse } from "@/lib/universe";
 import { applyFilters, EMPTY_FILTERS, ScreenerFilters, SCREENER_PRESETS, SortKey, sortStocks } from "@/lib/screener";
 import { CategoryBadge, DecisionBadge, RiskBadge, ScoreBadge } from "@/components/badges";
 import { formatCrore, formatPct, formatValue } from "@/lib/format";
@@ -23,7 +23,7 @@ const COLUMNS: { key: SortKey | "name"; label: string }[] = [
 ];
 
 export default function ScreenerPage() {
-  const universe = getStockUniverse();
+  const universe = useUniverse();
   const { addToWatchlist, watchlist } = usePortfolio();
   const [filters, setFilters] = useState<ScreenerFilters>(EMPTY_FILTERS);
   const [activePreset, setActivePreset] = useState<string | null>(null);
@@ -169,7 +169,12 @@ function ScreenerRow({ stock, watched, onWatch }: { stock: StockView; watched: b
           {stock.company.ticker}
         </Link>
         <p className="text-xs text-slate-500">{stock.company.sector}</p>
-        <CategoryBadge category={stock.score.category} />
+        <div className="flex flex-wrap items-center gap-1">
+          <CategoryBadge category={stock.score.category} />
+          {stock.company.dataSource === "imported" && (
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">Imported</span>
+          )}
+        </div>
       </td>
       <td className="px-4 py-3 text-slate-700">{formatCrore(stock.company.marketCap)}</td>
       <td className="px-4 py-3 text-slate-700">{formatPct(stock.fundamentals.salesCagr5y)}</td>

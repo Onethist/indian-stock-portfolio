@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/screener", label: "Screener" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/watchlist", label: "Watchlist" },
+  { href: "/admin/import", label: "Import" },
 ];
 
 export function Nav() {

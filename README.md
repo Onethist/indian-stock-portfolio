@@ -80,18 +80,32 @@ or database are required — see `.env.example` for what Phase 2 will need.
     fields (asset turnover, historical distress inputs) the demo data model
     doesn't carry — rather than fabricate them, the scanner omits these
     diagnostics instead of faking a number.
+- **CSV data import** (`/admin/import`, section 32) — bring real companies
+  into every part of the app (screener, dashboard, portfolio, Scanner) without
+  any API key. Two templates: a companies-and-latest-fundamentals snapshot,
+  and an optional governance-flags file. Validates per section 35 (price > 0,
+  market cap/debt ≥ 0, out-of-range percentages, negative PE, duplicate
+  tickers) and shows a per-row pass/fail preview before committing anything.
+  Critically, an imported row is treated as one real snapshot, **never**
+  expanded into a fabricated multi-year history the way the demo generator
+  works — anything you don't supply (a CAGR, a DMA, a governance flag) stays
+  null and is reflected honestly as a lower confidence score and a 0-weighted
+  sub-score, not an invented average. Imported companies are tagged
+  "Imported" everywhere they appear, and state lives in `localStorage`
+  alongside the portfolio/watchlist (see `src/lib/importedStock/` and
+  `src/lib/store/importedStore.tsx`).
 
 ## What's not built yet
 
 Per the spec's own phasing (section 65), these are intentionally deferred:
 
 - Real market-data providers (Alpha Vantage / Twelve Data), scheduled
-  ingestion, and the `MarketDataProvider` abstraction — all data today comes
-  from the in-memory demo generator in `src/lib/demo/`.
-- Postgres/Supabase persistence and auth — portfolio/watchlist state lives in
-  the browser's `localStorage` only.
-- CSV import/admin page, alerts, benchmarking (XIRR vs NIFTY), and performance
-  attribution (Phases 2, 4, 5).
+  ingestion, and the `MarketDataProvider` abstraction — CSV import (above) is
+  the first real-data path in; a live API adapter is the next step.
+- Postgres/Supabase persistence and auth — portfolio/watchlist/imported-data
+  state lives in the browser's `localStorage` only.
+- Alerts, benchmarking (XIRR vs NIFTY), and performance attribution
+  (Phases 4, 5).
 
 The `Company`/`Fundamentals`/`Valuation`/etc. shapes in `src/lib/types.ts`
 mirror the spec's table schema closely enough to generate a real Postgres

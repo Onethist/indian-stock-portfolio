@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { getStockUniverse } from "@/lib/demo";
+import { useUniverse } from "@/lib/universe";
 import { usePortfolio } from "@/lib/store/portfolioStore";
+import { StockCategory, StockView } from "@/lib/types";
 import { CATEGORY_PCT_KEY, categoryBudget, computeAllocationWarnings, computePortfolioSummary, buildSipPlan } from "@/lib/portfolio";
 import { formatINR, formatPct } from "@/lib/format";
 import { DecisionBadge, RiskBadge, ScoreBadge } from "@/components/badges";
-import { StockCategory } from "@/lib/types";
 
 const CATEGORIES: StockCategory[] = ["Growth", "Value", "Dividend", "Opportunity"];
 
 export default function DashboardPage() {
-  const universe = getStockUniverse();
+  const universe = useUniverse();
   const { settings, holdings, watchlist } = usePortfolio();
 
   const summary = computePortfolioSummary(holdings, universe);
@@ -208,7 +208,7 @@ function EmptyRow({ text }: { text: string }) {
   return <p className="py-4 text-sm text-slate-400">{text}</p>;
 }
 
-function DashboardStockRow({ stock }: { stock: ReturnType<typeof getStockUniverse>[number] }) {
+function DashboardStockRow({ stock }: { stock: StockView }) {
   return (
     <div className="flex items-center justify-between gap-3 py-3">
       <div className="min-w-0">

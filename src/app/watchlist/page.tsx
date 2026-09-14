@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { getStockUniverse } from "@/lib/demo";
+import { useUniverse } from "@/lib/universe";
 import { usePortfolio } from "@/lib/store/portfolioStore";
 import { DecisionBadge, RiskBadge, ScoreBadge } from "@/components/badges";
 import { formatDate, formatValue } from "@/lib/format";
 
 export default function WatchlistPage() {
-  const universe = getStockUniverse();
+  const universe = useUniverse();
   const { watchlist, removeFromWatchlist, updateWatchlistNotes } = usePortfolio();
 
   const rows = watchlist

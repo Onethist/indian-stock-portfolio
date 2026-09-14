@@ -33,6 +33,8 @@ export interface Company {
   marketCapCategory: MarketCapCategory;
   businessDescription: string;
   active: boolean;
+  /** "demo" = generated sample data, "imported" = uploaded via the CSV import page. Undefined is treated as "demo". */
+  dataSource?: "demo" | "imported";
 }
 
 export interface PricePoint {

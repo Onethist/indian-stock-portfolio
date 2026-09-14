@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { getStockUniverse } from "@/lib/demo";
+import { useUniverse } from "@/lib/universe";
 import { usePortfolio } from "@/lib/store/portfolioStore";
 import {
   CATEGORY_PCT_KEY,
@@ -18,7 +18,7 @@ import { AllocationSettings, StockCategory } from "@/lib/types";
 const CATEGORIES: StockCategory[] = ["Growth", "Value", "Dividend", "Opportunity"];
 
 export default function PortfolioPage() {
-  const universe = getStockUniverse();
+  const universe = useUniverse();
   const { settings, holdings, updateSettings, removeHolding } = usePortfolio();
   const summary = computePortfolioSummary(holdings, universe);
   const warnings = computeAllocationWarnings(holdings, universe, settings);
@@ -164,7 +164,7 @@ export default function PortfolioPage() {
 }
 
 function SipPlannerSection() {
-  const universe = getStockUniverse();
+  const universe = useUniverse();
   const { holdings, settings } = usePortfolio();
   const rows = holdings
     .map((h) => ({ stock: universe.find((s) => s.company.id === h.companyId), holding: h, plan: buildSipPlan(h, settings) }))

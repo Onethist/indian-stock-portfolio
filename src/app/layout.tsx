@@ -4,6 +4,7 @@ import "./globals.css";
 import { Nav } from "@/components/Nav";
 import { DemoDataBanner, Disclaimer } from "@/components/DemoDataBanner";
 import { PortfolioProvider } from "@/lib/store/portfolioStore";
+import { ImportedDataProvider } from "@/lib/store/importedStore";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,12 +28,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
-        <PortfolioProvider>
-          <DemoDataBanner />
-          <Nav />
-          <main className="flex-1">{children}</main>
-          <Disclaimer />
-        </PortfolioProvider>
+        <ImportedDataProvider>
+          <PortfolioProvider>
+            <DemoDataBanner />
+            <Nav />
+            <main className="flex-1">{children}</main>
+            <Disclaimer />
+          </PortfolioProvider>
+        </ImportedDataProvider>
       </body>
     </html>
   );

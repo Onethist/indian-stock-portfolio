@@ -8,7 +8,7 @@ import { formatDate, formatINR, formatPct, formatValue } from "@/lib/format";
 import { SimpleLineChart } from "@/components/charts/SimpleLineChart";
 import { usePortfolio } from "@/lib/store/portfolioStore";
 import { buildSipPlan, suggestTargetAllocation } from "@/lib/portfolio";
-import { getStockUniverse } from "@/lib/demo";
+import { useUniverse } from "@/lib/universe";
 import { scanStock } from "@/lib/scanner";
 
 const TABS = ["Overview", "Fundamentals", "Cash Flow", "Valuation", "Dividend", "Technical", "Risk", "Scanner", "Portfolio", "Thesis"] as const;
@@ -47,6 +47,9 @@ export function StockDetailClient({ stock }: { stock: StockView }) {
               <CategoryBadge category={stock.score.category} />
               <RiskBadge status={stock.score.riskStatus} />
               <ConfidenceBadge level={stock.score.confidence} />
+              {stock.company.dataSource === "imported" && (
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700">Imported (CSV)</span>
+              )}
             </div>
             <DecisionBadge decision={stock.score.decision} />
             <button
@@ -363,7 +366,7 @@ const FACTOR_LABELS: { key: "value" | "quality" | "growth" | "dividend" | "size"
 ];
 
 function ScannerTab({ stock }: { stock: StockView }) {
-  const universe = getStockUniverse();
+  const universe = useUniverse();
   const scan = scanStock(stock, universe);
   const { master, strategy, factors, dcf, traps, classification } = scan;
 
@@ -508,7 +511,7 @@ function TrapBadge({ label, active }: { label: string; active: boolean }) {
 
 function PortfolioTab({ stock }: { stock: StockView }) {
   const { holdings, settings, buyStock } = usePortfolio();
-  const universe = getStockUniverse();
+  const universe = useUniverse();
   const holding = holdings.find((h) => h.companyId === stock.company.id);
   const peers = universe.filter((s) => s.score.category === stock.score.category);
   const suggested = Math.round(suggestTargetAllocation(stock, peers, settings));
