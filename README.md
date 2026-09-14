@@ -94,14 +94,46 @@ or database are required — see `.env.example` for what Phase 2 will need.
   "Imported" everywhere they appear, and state lives in `localStorage`
   alongside the portfolio/watchlist (see `src/lib/importedStock/` and
   `src/lib/store/importedStore.tsx`).
+- **`MarketDataProvider` interface + a real Alpha Vantage adapter**
+  (`src/lib/providers/`, section 6) — the app is not hard-coded around one
+  vendor. `MarketDataProvider` declares `getQuotes` / `getHistoricalPrices` /
+  `getFundamentals` / `getDividends` / `getOwnership`, all returning
+  `{ data, warnings, rateLimited }` so a partial or rate-limited response
+  degrades gracefully instead of crashing or being silently swallowed.
+  `AlphaVantageProvider` implements it against the real, genuinely-free
+  [Alpha Vantage API](https://www.alphavantage.co/support/#api-key) — tested
+  live against IBM in development, including a run where the DIVIDENDS
+  sub-call got a demo-key throttling notice while the quote and fundamentals
+  calls still succeeded, and the row still built correctly with that one gap
+  surfaced as a warning. Reachable from `/admin/import` → "2. Or fetch one
+  stock live". Known, honestly-surfaced limits:
+  - NSE isn't supported directly; BSE-listed symbols work with a `.BSE`
+    suffix (e.g. `RELIANCE.BSE`).
+  - Free tier is ~25 requests/day, 5/minute — this adapter fetches one
+    symbol at a time and does not batch or retry aggressively.
+  - `OVERVIEW` (fundamentals) coverage for Indian symbols is inconsistent;
+    many BSE tickers return nothing, surfaced as a warning rather than a
+    guess. ROCE, cash flow, and CAGR fields specifically aren't available
+    from this provider at all — the API key is server-only
+    (`ALPHA_VANTAGE_API_KEY`, see `.env.example`), read only inside the
+    `/api/market-data/fetch` route handler, never in client code.
+  - **`getOwnership` always returns null data.** No global market-data API
+    tracks Indian shareholding-pattern data (promoter holding/pledge,
+    FII/DII split) — that has to come from NSE/BSE disclosures or CSV import.
+  - A live fetch is normalized into the exact same `CompanySnapshotRow`
+    shape the CSV pipeline produces (`src/lib/providers/normalize.ts`), so
+    everything downstream — validation, scoring, the Fundamental Scanner —
+    treats a live-fetched stock and a CSV-imported one identically.
 
 ## What's not built yet
 
 Per the spec's own phasing (section 65), these are intentionally deferred:
 
-- Real market-data providers (Alpha Vantage / Twelve Data), scheduled
-  ingestion, and the `MarketDataProvider` abstraction — CSV import (above) is
-  the first real-data path in; a live API adapter is the next step.
+- Scheduled/batch ingestion across the full stock universe (section 33/61) —
+  today's provider adapter fetches one symbol at a time, on demand.
+- A second `MarketDataProvider` implementation (e.g. Twelve Data) — the
+  interface is provider-agnostic by design, but only Alpha Vantage is wired
+  up so far.
 - Postgres/Supabase persistence and auth — portfolio/watchlist/imported-data
   state lives in the browser's `localStorage` only.
 - Alerts, benchmarking (XIRR vs NIFTY), and performance attribution

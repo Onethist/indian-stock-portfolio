@@ -48,7 +48,7 @@ export function StockDetailClient({ stock }: { stock: StockView }) {
               <RiskBadge status={stock.score.riskStatus} />
               <ConfidenceBadge level={stock.score.confidence} />
               {stock.company.dataSource === "imported" && (
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700">Imported (CSV)</span>
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700">Imported</span>
               )}
             </div>
             <DecisionBadge decision={stock.score.decision} />
