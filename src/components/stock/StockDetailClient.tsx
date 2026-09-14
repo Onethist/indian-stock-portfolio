@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { StockView } from "@/lib/types";
 import { CategoryBadge, ConfidenceBadge, DecisionBadge, RiskBadge, ScoreBadge } from "@/components/badges";
-import { formatDate, formatINR, formatPct, formatValue } from "@/lib/format";
+import { formatCrore, formatDate, formatINR, formatPct, formatValue } from "@/lib/format";
 import { SimpleLineChart } from "@/components/charts/SimpleLineChart";
 import { usePortfolio } from "@/lib/store/portfolioStore";
 import { buildSipPlan, suggestTargetAllocation } from "@/lib/portfolio";
@@ -170,7 +170,7 @@ function OverviewTab({ stock }: { stock: StockView }) {
       <div className="space-y-5">
         <Card title="Key stats">
           <div className="grid grid-cols-2 gap-4">
-            <Stat label="Market cap" value={`₹${stock.company.marketCap.toLocaleString("en-IN")} Cr`} />
+            <Stat label="Market cap" value={formatCrore(stock.company.marketCap)} />
             <Stat label="PE" value={stock.valuation.pe ? stock.valuation.pe.toFixed(1) : "N/A"} />
             <Stat label="ROCE" value={formatValue(latest.roce, "%")} />
             <Stat label="ROE" value={formatValue(latest.roe, "%")} />

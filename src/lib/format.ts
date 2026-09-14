@@ -6,7 +6,9 @@ export function formatNumber(n: number, decimals = 1): string {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: decimals }).format(n);
 }
 
+/** A real company's market cap is never legitimately <= 0, so that's treated as "unknown" (null-defaulted), not a real value. */
 export function formatCrore(n: number): string {
+  if (n <= 0) return "N/A";
   return `₹${formatNumber(n, 0)} Cr`;
 }
 
